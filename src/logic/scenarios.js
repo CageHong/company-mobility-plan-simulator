@@ -1,48 +1,50 @@
 /**
- * LOGIC LAYER — scenarios.js
+ * LOGIC LAYER — scenarios.js v1.4
  *
- * Responsibility: What-if scenario modifiers.
- * Applies before engine.js — adjusts the active employee pool.
+ * Changes vs v1.3:
+ *   Remote work filtering switched from ID-based uniform hash to
+ *   distance-weighted selection: employees with longer commutes are
+ *   prioritised for remote work, reflecting stronger motivation to
+ *   avoid long commutes and higher likelihood of accepting remote offers.
  *
- * Key fix vs v1.0:
- *   Old: used array index for remote work filtering → unstable across re-renders.
- *   New: uses employee ID (odd/even + modulo) as a stable, deterministic seed.
- *        Same slider value always produces the same subset of employees.
+ *   Assumption boundary: this is a static model. It does not simulate
+ *   long-term behavioural responses (e.g. employees relocating further
+ *   away because remote work is available). See context.md §7.
  *
  * scenarioParams shape:
  *   {
- *     remoteWorkPct:   number  (0–80, % of workforce excluded as fully remote)
- *     carpoolingPct:   number  (0–50, % of remaining car users carpooling)
+ *     remoteWorkPct:  number  (0–80, % of workforce treated as fully remote)
+ *     carpoolingPct:  number  (0–50, % of remaining car users carpooling)
  *   }
  *
  * Assumptions:
- *   - Remote work % is treated as a company-wide policy applied uniformly.
- *     In reality, distribution would vary by role — but role data is unavailable.
- *   - The remoteDaysPerWeek param in engine.js handles *hybrid* workers.
- *     This remoteWorkPct handles *fully remote* workers removed from the pool.
+ *   - Employees are ranked by distance descending; the top remoteWorkPct%
+ *     are removed from the active pool (treated as fully remote).
+ *   - Distance is used as a proxy for remote work likelihood. In reality,
+ *     job role would also matter, but role data is unavailable.
  *   - Carpooling reduces on-road vehicle count but has no direct subsidy impact.
  *   - Average carpooling occupancy: 2 employees per car.
  */
 
 /**
- * Deterministic hash based on employee ID.
- * Maps any integer ID to a float in [0, 1) — stable across re-renders.
- *
- * Uses a simple linear congruential approach sufficient for UI stability.
- * This is NOT cryptographic — it's just for consistent visual behaviour.
+ * Apply distance-weighted remote work filter.
+ * Sorts employees by distance descending, removes the top remoteWorkPct%.
+ * Result is stable: same slider value always removes the same employees.
  */
-function stableRandom(id) {
-  const x = Math.sin(id * 9301 + 49297) * 233280;
-  return x - Math.floor(x);
-}
-
 function applyRemoteWork(masterData, remoteWorkPct) {
   if (remoteWorkPct <= 0) {
     return { activeData: masterData, removedCount: 0 };
   }
-  const threshold  = remoteWorkPct / 100;
-  const activeData = masterData.filter(emp => stableRandom(emp.id) >= threshold);
-  return { activeData, removedCount: masterData.length - activeData.length };
+
+  // Sort by distance descending (furthest first = most likely to go remote)
+  const sorted = [...masterData].sort((a, b) => b.distance - a.distance);
+
+  const removeCount = Math.round(masterData.length * remoteWorkPct / 100);
+  const removedIds  = new Set(sorted.slice(0, removeCount).map(e => e.id));
+
+  const activeData = masterData.filter(e => !removedIds.has(e.id));
+
+  return { activeData, removedCount: removeCount };
 }
 
 function estimateCarpooling(carCount, carpoolingPct) {

@@ -44,9 +44,9 @@ function bestPtOption(emp, days) {
 
 function shouldReclaimParking(emp, assignment, remoteDaysPerWeek) {
   if (!emp.pp) return false;
-  if (remoteDaysPerWeek === 5) return true;
-  if (remoteDaysPerWeek > 0)  return false;
-  return assignment === 'bike' || assignment === 'pt';
+  if (remoteDaysPerWeek === 5) return true;       // 完全遠距 → 一律回收
+  if (assignment === 'bike' || assignment === 'pt') return true;  // 換模式 → 回收
+  return false;                                   // 繼續開車的混合辦公者 → 保留
 }
 
 function compute(masterData, params) {

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Company Mobility Plan Simulator</title>
+  <link rel="stylesheet" href="./assets/css/style.css" />
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p>Loading employee data…</p>
+</div>
+
+<div id="dashboard">
+  <div class="app-layout">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-dot"></div>
+        <span class="header-title">Company Mobility Plan Simulator</span>
+      </div>
+      <span class="header-meta">1,161 employees · 14 zones · €100K annual budget</span>
+    </header>
+
+    <aside class="sidebar">
+
+      <!-- Strategy -->
+      <div class="sidebar-section section-strategy">
+        <div class="sidebar-label">Strategy</div>
+        <div class="mode-buttons">
+          <button class="mode-btn active" data-mode="bike">Bike</button>
+          <button class="mode-btn" data-mode="pt">PT</button>
+          <button class="mode-btn" data-mode="both">Both</button>
+        </div>
+        <input type="hidden" id="ctrl-mode" value="bike" />
+      </div>
+
+      <!-- Bike -->
+      <div class="sidebar-section section-bike">
+        <div class="sidebar-label">Bike</div>
+        <div class="ctrl-row" id="row-bike-dist">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Max distance</span>
+            <span class="ctrl-val" id="ctrl-bike-dist-val">5,000 m</span>
+          </div>
+          <input type="range" id="ctrl-bike-dist" min="500" max="5000" step="100" value="5000" />
+        </div>
+      </div>
+
+      <!-- PT -->
+      <div class="sidebar-section section-pt">
+        <div class="sidebar-label">Public Transport</div>
+        <div class="ctrl-row" id="row-pt-time">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Max travel time</span>
+            <span class="ctrl-val" id="ctrl-pt-time-val">60 min</span>
+          </div>
+          <input type="range" id="ctrl-pt-time" min="0" max="3600" step="60" value="3600" />
+        </div>
+        <div class="ctrl-row" id="row-pt-subsidy">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Company subsidy rate</span>
+            <span class="ctrl-val" id="ctrl-pt-subsidy-val">100%</span>
+          </div>
+          <input type="range" id="ctrl-pt-subsidy" min="0" max="100" step="5" value="100" />
+          <div class="ctrl-hint">
+            Employee pays the remaining % of their optimal ticket cost.
+          </div>
+        </div>
+      </div>
+
+      <!-- Conflict (Both mode only) -->
+      <div class="sidebar-section section-strategy" id="conflict-row" style="display:none;">
+        <div class="sidebar-label">Conflict Rule</div>
+        <select id="ctrl-conflict">
+          <option value="cost">Cheapest for company</option>
+          <option value="bike">Prefer bike</option>
+          <option value="pt">Prefer PT</option>
+        </select>
+      </div>
+
+      <!-- Hybrid Work -->
+      <div class="sidebar-section section-hybrid">
+        <div class="sidebar-label">Hybrid Work</div>
+        <div class="ctrl-row">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Remote days / week</span>
+            <span class="ctrl-val" id="ctrl-remote-days-val">Full on-site</span>
+          </div>
+          <input type="range" id="ctrl-remote-days" min="0" max="5" step="1" value="0" />
+        </div>
+        <div class="ctrl-hint">
+          Hybrid (1–4 days): commuting days ↓, ticket type may switch.<br>
+          Fully remote (5 days): parking spot always reclaimed.
+        </div>
+      </div>
+
+      <!-- What-if -->
+      <div class="sidebar-section section-whatif">
+        <div class="sidebar-label">What-if Scenarios</div>
+        <div class="ctrl-row">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Fully remote workforce %</span>
+            <span class="ctrl-val" id="ctrl-remote-val">0%</span>
+          </div>
+          <input type="range" id="ctrl-remote" min="0" max="80" step="5" value="0" />
+        </div>
+        <div class="ctrl-row">
+          <div class="ctrl-row-head">
+            <span class="ctrl-name">Carpooling participation</span>
+            <span class="ctrl-val" id="ctrl-carpool-val">0%</span>
+          </div>
+          <input type="range" id="ctrl-carpool" min="0" max="50" step="5" value="0" />
+        </div>
+      </div>
+
+      <!-- Optimize -->
+      <div class="sidebar-section section-optimize">
+        <div class="sidebar-label">Auto-Optimize</div>
+        <p class="ctrl-hint" style="margin-bottom:10px;">
+          Finds the distance + time thresholds that convert the most employees
+          within the €100K budget, given your current subsidy rate and hybrid policy.
+        </p>
+        <button id="btn-optimize" class="optimize-btn">Optimize ↗</button>
+      </div>
+
+    </aside>
+
+    <main class="main">
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="kpi-card" id="kpi-total" data-status="ok">
+          <div class="kpi-label">Total Expenditure</div>
+          <div class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card" id="kpi-budget" data-status="ok">
+          <div class="kpi-label">Remaining Budget</div>
+          <div class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card" id="kpi-saved" data-status="neutral">
+          <div class="kpi-label">Parking Spots Freed</div>
+          <div class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card" id="kpi-converted" data-status="neutral">
+          <div class="kpi-label">Employees Converted</div>
+          <div class="kpi-value">—</div>
+        </div>
+        <div class="kpi-card" id="kpi-subsidy" data-status="ok">
+          <div class="kpi-label">Subsidy Cost / Year</div>
+          <div class="kpi-value">—</div>
+        </div>
+      </div>
+
+      <!-- Charts row 1 -->
+      <div class="chart-grid-top">
+        <div class="chart-card">
+          <div class="chart-title">Annual Budget Breakdown</div>
+          <div class="chart-subtitle">Retained parking + subsidies vs €100K limit</div>
+          <div id="chart-budget"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Modal Split</div>
+          <div class="chart-subtitle">Transport mode distribution</div>
+          <div id="chart-modal"></div>
+        </div>
+      </div>
+
+      <!-- Charts row 2 -->
+      <div class="chart-grid-bottom">
+        <div class="chart-card">
+          <div class="chart-title">Zone Analysis</div>
+          <div class="chart-subtitle">Car / Bike / PT headcount by home zone, sorted by total</div>
+          <div id="chart-zone"></div>
+        </div>
+      </div>
+
+      <!-- What-if summary -->
+      <div class="whatif-panel">
+        <div class="chart-title">What-if Impact Summary</div>
+        <div class="whatif-layout">
+          <div>
+            <div class="sidebar-label" style="margin-bottom:10px;">Scenario Results</div>
+            <div id="whatif-summary"></div>
+          </div>
+          <div>
+            <div class="sidebar-label" style="margin-bottom:10px;">Key Assumptions</div>
+            <div class="assumptions">
+              <strong>Bike:</strong> €150/person/year (bike + secure storage). Min 500 m.<br><br>
+              <strong>PT ticket logic:</strong> min(daily × commuting days, monthly × 12, yearly) per employee. Personal tipping point = yearly ÷ daily price.<br><br>
+              <strong>PT subsidy:</strong> Company covers the set % of the optimal ticket. Employee self-pays the remainder.<br><br>
+              <strong>Hybrid work:</strong> 1–4 remote days/week reduces commuting days and may trigger a switch from yearly to daily ticket. Parking spot retained.<br><br>
+              <strong>Fully remote:</strong> 0 commuting days, parking spot always reclaimed.<br><br>
+              <strong>Carpooling:</strong> 2 employees/car average. Informational only.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+
+<script src="./src/data/loader.js"></script>
+<script src="./src/logic/engine.js"></script>
+<script src="./src/logic/optimizer.js"></script>
+<script src="./src/logic/scenarios.js"></script>
+<script src="./src/components/controls.js"></script>
+<script src="./src/components/kpi-cards.js"></script>
+<script src="./src/components/budget-chart.js"></script>
+<script src="./src/components/modal-chart.js"></script>
+<script src="./src/components/zone-chart.js"></script>
+<script src="./src/app.js"></script>
+
+</body>
+</html>

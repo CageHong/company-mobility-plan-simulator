@@ -26,15 +26,14 @@
   // Normal re-render on any control change
   document.addEventListener('controls:change', e => runPipeline(e.detail));
 
-  // Optimizer: runs search, animates sliders, then re-renders
+// Optimizer: runs search, animates sliders, then re-renders
   document.addEventListener('controls:optimize', e => {
-    const fixedParams = {
-      remoteDaysPerWeek: e.detail.remoteDaysPerWeek,
-      ptSubsidyPct:      e.detail.ptSubsidyPct,
-      conflictRule:      e.detail.conflictRule,
-    };
+    const { remoteWorkPct, carpoolingPct, ...fixedParams } = e.detail;
 
-    const best = optimize(masterData, fixedParams);
+    // Apply remote work filter first, then optimize on remaining employees
+    const { activeData } = applyScenarios(masterData, { remoteWorkPct, carpoolingPct });
+    const best = optimize(activeData, fixedParams);
+
     animateToOptimal(best);
 
     // Re-render with optimal params after animation settles

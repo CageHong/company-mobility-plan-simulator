@@ -1,5 +1,5 @@
 /**
- * LOGIC LAYER — engine.js v1.3
+ * LOGIC LAYER — engine.js v1.4
  *
  * Changes vs v1.2:
  *   - Added ptSubsidyPct (0–100): company pays this % of each employee's
@@ -59,10 +59,16 @@ function compute(masterData, params) {
     ptSubsidyPct      = 100,   // default: company covers 100%
   } = params;
 
-  const days          = commutingDays(remoteDaysPerWeek);
   const subsidyRate   = ptSubsidyPct / 100;
 
   const enriched = masterData.map(emp => {
+    // Per-employee remote days: scenarios.js may stamp remoteDaysPerWeek=5
+    // on individual records; fall back to the global param for everyone else.
+    const empRemoteDays = emp.remoteDaysPerWeek !== undefined
+      ? emp.remoteDaysPerWeek
+      : remoteDaysPerWeek;
+    const days = commutingDays(empRemoteDays);
+
     const bikeEligible = emp.distance >= 500 && emp.distance <= bikeMaxDist;
     const ptEligible   = emp.tPT <= ptMaxTime;
     const ptOption     = bestPtOption(emp, days);
@@ -72,9 +78,9 @@ function compute(masterData, params) {
     const ptEmployeeCost = ptOption.cost * (1 - subsidyRate);
 
     // For conflict resolution, compare company cost only
-    let assignment = remoteDaysPerWeek === 5 ? 'remote' : 'car';
+    let assignment = empRemoteDays === 5 ? 'remote' : 'car';
 
-    if (remoteDaysPerWeek < 5) {
+    if (empRemoteDays < 5) {
       if (mode === 'bike') {
         if (bikeEligible) assignment = 'bike';
       } else if (mode === 'pt') {
@@ -103,7 +109,7 @@ function compute(masterData, params) {
       ptTicket:         ptOption.ticket,
       tippingPoint:     tippingPoint(emp),
       assignment,
-      parkingReclaimed: shouldReclaimParking(emp, assignment, remoteDaysPerWeek),
+      parkingReclaimed: shouldReclaimParking(emp, assignment, empRemoteDays),
     };
   });
 
@@ -161,7 +167,7 @@ function compute(masterData, params) {
     ptEmployeeTotal:      Math.round(ptEmployeeTotal),
     avgEmployeeSelfPay:   ptCount > 0 ? Math.round(ptEmployeeTotal / ptCount) : 0,
     ptSubsidyPct,
-    commutingDays:        days,
+    commutingDays:        commutingDays(remoteDaysPerWeek),
     remoteDaysPerWeek,
     byZone,
     employees: enriched,

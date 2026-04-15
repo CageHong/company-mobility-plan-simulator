@@ -1,15 +1,12 @@
 /**
- * LOGIC LAYER — scenarios.js v1.4
+ * LOGIC LAYER — scenarios.js v1.5
  *
- * Changes vs v1.3:
- *   Remote work filtering switched from ID-based uniform hash to
- *   distance-weighted selection: employees with longer commutes are
- *   prioritised for remote work, reflecting stronger motivation to
- *   avoid long commutes and higher likelihood of accepting remote offers.
- *
- *   Assumption boundary: this is a static model. It does not simulate
- *   long-term behavioural responses (e.g. employees relocating further
- *   away because remote work is available). See context.md §7.
+ * Changes vs v1.4:
+ *   Remote workers are no longer removed from the active pool.
+ *   Instead they are passed to engine.js with remoteDaysPerWeek=5,
+ *   so shouldReclaimParking() correctly frees their parking spots.
+ *   Previously, filtering them out meant their PP=1 spots were never
+ *   reclaimed, understating the parking savings from remote work.
  *
  * scenarioParams shape:
  *   {
@@ -19,17 +16,20 @@
  *
  * Assumptions:
  *   - Employees are ranked by distance descending; the top remoteWorkPct%
- *     are removed from the active pool (treated as fully remote).
+ *     are marked as fully remote (remoteDaysPerWeek=5).
  *   - Distance is used as a proxy for remote work likelihood. In reality,
  *     job role would also matter, but role data is unavailable.
+ *   - Fully remote employees cannot receive bike/PT subsidies (they don't commute),
+ *     but their parking spots are reclaimed (no on-site presence needed).
  *   - Carpooling reduces on-road vehicle count but has no direct subsidy impact.
  *   - Average carpooling occupancy: 2 employees per car.
  */
 
 /**
  * Apply distance-weighted remote work filter.
- * Sorts employees by distance descending, removes the top remoteWorkPct%.
- * Result is stable: same slider value always removes the same employees.
+ * Sorts employees by distance descending; marks the top remoteWorkPct%
+ * as fully remote by setting remoteDaysPerWeek=5 on their record.
+ * They stay in activeData so engine.js can reclaim their parking spots.
  */
 function applyRemoteWork(masterData, remoteWorkPct) {
   if (remoteWorkPct <= 0) {
@@ -40,9 +40,12 @@ function applyRemoteWork(masterData, remoteWorkPct) {
   const sorted = [...masterData].sort((a, b) => b.distance - a.distance);
 
   const removeCount = Math.round(masterData.length * remoteWorkPct / 100);
-  const removedIds  = new Set(sorted.slice(0, removeCount).map(e => e.id));
+  const remoteIds   = new Set(sorted.slice(0, removeCount).map(e => e.id));
 
-  const activeData = masterData.filter(e => !removedIds.has(e.id));
+  // Mark remote employees instead of removing them
+  const activeData = masterData.map(e =>
+    remoteIds.has(e.id) ? { ...e, remoteDaysPerWeek: 5 } : e
+  );
 
   return { activeData, removedCount: removeCount };
 }
